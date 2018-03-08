@@ -44,6 +44,12 @@
 #include "task.h"
 #include "semphr.h"
 
+#include "event_groups.h"
+
+EventGroupHandle_t g_time_events;
+
+
+
 /* TODO: insert other include files here. */
 
 /* TODO: insert other definitions and declarations here. */
@@ -72,10 +78,19 @@ typedef struct
 #define TOP_MINUTES 60
 #define TOP_HOURS 24
 
+#define HOURS_ALARM 23
+#define MINUTES_ALARM 59
+#define SECONDS_ALARM 59
 
+#define HOURS_EVENT_BIT (1 << 0)
+#define MINUTES_EVENT_BIT (1 << 1)
+#define SECONDS_EVENT_BIT (1 << 2)
 SemaphoreHandle_t minutes_semaphore;
 SemaphoreHandle_t hours_semaphore;
 SemaphoreHandle_t mutex_uart;
+
+
+QueueHandle_t xQueue;
 
 
 
@@ -96,10 +111,11 @@ void print_task(void * args){
 
 void seconds_task(void *args){
 	time_msg_t *message;
+	const TickType_t LastTimeAwake ;
 	static uint8_t seconds = 0;
 
 #if 0
-	QueueHandle_t  seconds_handler = (QueueHandle_t)(args);
+	QueueHandle_t * seconds_handler = (QueueHandle_t*)(args);
 #endif
 	for(;;){
 		message = pvPortMalloc(sizeof(time_msg_t));
@@ -118,7 +134,7 @@ void seconds_task(void *args){
 		message->time_type = seconds_type;
 		message->value =seconds;
 		xQueueSend(time_Queue, &message, portMAX_DELAY);
-		vTaskDelay(pdMS_TO_TICKS(1000));
+		vTaskDelayUntil(&LastTimeAwake,pdMS_TO_TICKS(1000));
 
 	};
 
@@ -145,6 +161,7 @@ void minutes_task(void *arg){
 
 void hours_task(void * args){
 	time_msg_t *message;
+
 	static uint8_t hours = 0;
 
 		xSemaphoreTake(hours_semaphore, portMAX_DELAY);
@@ -153,6 +170,8 @@ void hours_task(void * args){
 		}else{
 			hours = 0;
 		}
+		xEventGroupSetBits(g_time_events, HOURS_EVENT_BIT);
+
 		message->time_type = hours_type;
 		message->value = hours;
 		xQueueSend(time_Queue, &message, portMAX_DELAY);
@@ -172,7 +191,6 @@ int main(void) {
 	/* Init FSL debug console. */
 	BOARD_InitDebugConsole();
 
-	QueueHandle_t xQueue;
 
 
 	xTaskCreate(seconds_task, "Seconds", configMINIMAL_STACK_SIZE, (void*)(xQueue), configMAX_PRIORITIES - 0, NULL);
@@ -186,6 +204,8 @@ int main(void) {
 	minutes_semaphore = xSemaphoreCreateBinary();
 	hours_semaphore = xSemaphoreCreateBinary();
 	mutex_uart = xSemaphoreCreateMutex();
+
+	g_time_events = xEventGroupCreate();
 
 	vTaskStartScheduler();
 

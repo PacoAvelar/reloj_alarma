@@ -48,25 +48,16 @@
 
 EventGroupHandle_t g_time_events;
 
-/* TODO: insert other include files here. */
-
-/* TODO: insert other definitions and declarations here. */
-
-/*
- * @brief   Application entry point.
- *
- */
-
 typedef enum {
-	seconds_type, minutes_type, hours_type
+    seconds_type, minutes_type, hours_type
 } time_types_t;
 
 typedef struct
 
 {
-	time_types_t time_type;
+    time_types_t time_type;
 
-	uint8_t value;
+    uint8_t value;
 
 } time_msg_t;
 
@@ -91,150 +82,219 @@ QueueHandle_t xQueue;
 QueueHandle_t time_Queue;
 void alarm_task(void * args) {
 
-	for (;;) {
-		xEventGroupWaitBits(g_time_events,
-		SECONDS_EVENT_BIT | MINUTES_EVENT_BIT | HOURS_EVENT_BIT, pdTRUE,
-		pdTRUE, portMAX_DELAY);
-		PRINTF("LEVANTATE CABRON!\n");
-	}
+    for (;;)
+    {
+        xEventGroupWaitBits(g_time_events,
+        SECONDS_EVENT_BIT | MINUTES_EVENT_BIT | HOURS_EVENT_BIT,
+                            pdTRUE,
+                            pdTRUE,
+                            portMAX_DELAY);
+        PRINTF("LEVANTATE CABRON!\n");
+    }
 
 }
 
 void print_task(void * args) {
-	static uint8_t seconds = 0;
-	static uint8_t minutes = 0;
-	static uint8_t hours = 0;
-	time_msg_t *message;
-	xQueueReceive(xQueue, &message, portMAX_DELAY);
+    static uint8_t seconds = 0;
+    static uint8_t minutes = 0;
+    static uint8_t hours = 0;
+    time_msg_t *message;
 
-	switch (message->time_type) {
-	case seconds_type:
-		seconds = message->value;
-		break;
-	case minutes_type:
-		minutes = message->value;
-		break;
-	case hours_type:
-		hours = message->value;
-		break;
-	default:
-		break;
-	}
+    for (;;)
+    {
+#if 0
+        xQueueReceive(xQueue, &message, portMAX_DELAY);
+#endif
+        switch (message->time_type)
+        {
+            case seconds_type:
+                seconds = message->value;
+            break;
+            case minutes_type:
+                minutes = message->value;
+            break;
+            case hours_type:
+                hours = message->value;
+            break;
+            default:
+            break;
+        }
 
-	PRINTF("%d : %d : %d hrs", hours,minutes,seconds);
+        PRINTF("%d : %d : %d hrs", hours, minutes, seconds);
+    }
 
 }
 
 void seconds_task(void *args) {
-	time_msg_t *message;
-	static TickType_t LastTimeAwake;
-	static uint8_t seconds = 0;
+    time_msg_t *message;
+    static TickType_t LastTimeAwake;
+    static uint8_t seconds = 55;
+    if ((MINUTES_EVENT_BIT | HOURS_EVENT_BIT)
+            == xEventGroupGetBits(g_time_events))
+    {
+        if (SECONDS_ALARM == seconds)
+        {
 
+            xEventGroupSetBits(g_time_events, SECONDS_EVENT_BIT);
+        }
+    }
 #if 0
-	QueueHandle_t * seconds_handler = (QueueHandle_t*)(args);
+    QueueHandle_t * seconds_handler = (QueueHandle_t*)(args);
 #endif
-	for (;;) {
-		message = pvPortMalloc(sizeof(time_msg_t));
-		/*
-		 * Falta verificar la parte de alarma
-		 */
+    for (;;)
+    {
 
-		if (seconds < TOP_SECONDS) {
-			seconds++;
+        /*
+         * Falta verificar la parte de alarma
+         */
 
-		} else {
-			seconds = 0;
-			xSemaphoreGive(minutes_semaphore);
-		}
-		if ((MINUTES_EVENT_BIT | HOURS_EVENT_BIT)
-				== xEventGroupGetBits(g_time_events)) {
-			xEventGroupSetBits(g_time_events, SECONDS_EVENT_BIT);
-		}
+        if (seconds < TOP_SECONDS - 1)
+        {
+            seconds++;
 
-		message->time_type = seconds_type;
-		message->value = seconds;
-		xQueueSend(time_Queue, &message, portMAX_DELAY);
-		vTaskDelayUntil(&LastTimeAwake, pdMS_TO_TICKS(1000));
+        } else
+        {
+            seconds = 0;
+            xSemaphoreGive(minutes_semaphore);
+        }
+        if ((MINUTES_EVENT_BIT | HOURS_EVENT_BIT)
+                == xEventGroupGetBits(g_time_events))
+        {
+            if (SECONDS_ALARM == seconds)
+            {
+                xEventGroupSetBits(g_time_events, SECONDS_EVENT_BIT);
+            }
+        }
 
-	};
+        message = pvPortMalloc(sizeof(time_msg_t));
+        message->time_type = seconds_type;
+        message->value = seconds;
+        vPortFree(message);
+#if 0
+        xQueueSend(time_Queue, &message, portMAX_DELAY);
+#endif
+        vTaskDelayUntil(&LastTimeAwake, pdMS_TO_TICKS(1000));
+
+    };
 
 }
 
 void minutes_task(void *arg) {
-	time_msg_t *message;
-	static uint8_t minutes = 0;
+    time_msg_t *message;
+    static uint8_t minutes = 59;
+    if (HOURS_EVENT_BIT == xEventGroupGetBits(g_time_events))
+    {
+        if (MINUTES_ALARM == minutes)
+        {
+            xEventGroupSetBits(g_time_events, MINUTES_EVENT_BIT);
+        }
+    }
 
-	xSemaphoreTake(minutes_semaphore, portMAX_DELAY);
-	if (minutes < TOP_SECONDS) {
-		minutes++;
-	} else {
-		minutes = 0;
-		xSemaphoreGive(hours_semaphore);
-	}
-	if (HOURS_EVENT_BIT == xEventGroupGetBits(g_time_events)) {
-		if (MINUTES_ALARM == minutes) {
-			xEventGroupSetBits(g_time_events, MINUTES_EVENT_BIT);
-		}
-	}
-	message->time_type = minutes_type;
-	message->value = minutes;
-	xQueueSend(time_Queue, &message, portMAX_DELAY);
-	xSemaphoreTake(minutes_semaphore, portMAX_DELAY);
 
+    for (;;)
+    {
+        xSemaphoreTake(minutes_semaphore, portMAX_DELAY);
+        if (minutes < TOP_MINUTES - 1)
+        {
+            minutes++;
+        } else
+        {
+            minutes = 0;
+            xSemaphoreGive(hours_semaphore);
+        }
+        if (HOURS_EVENT_BIT == xEventGroupGetBits(g_time_events))
+        {
+            if (MINUTES_ALARM == minutes)
+            {
+                xEventGroupSetBits(g_time_events, MINUTES_EVENT_BIT);
+            }
+        }
+
+        message = pvPortMalloc(sizeof(time_msg_t));
+        message->time_type = minutes_type;
+        message->value = minutes;
+#if 0
+        xQueueSend(time_Queue, &message, portMAX_DELAY);
+
+#endif
+        vPortFree(message);
+    }
 }
 
 void hours_task(void * args) {
-	time_msg_t *message;
+    time_msg_t *message;
 
-	static uint8_t hours = 0;
+    static uint8_t hours = 23;
+    if (HOURS_ALARM == hours)
+    {
+        xEventGroupSetBits(g_time_events, HOURS_EVENT_BIT);
 
-	xSemaphoreTake(hours_semaphore, portMAX_DELAY);
-	if (hours < TOP_HOURS) {
-		hours++;
-	} else {
-		hours = 0;
-	}
-	if (HOURS_ALARM == hours) {
-		xEventGroupSetBits(g_time_events, HOURS_EVENT_BIT);
+    }
+    for (;;)
+    {
+        xSemaphoreTake(hours_semaphore, portMAX_DELAY);
+        if (hours < TOP_HOURS - 1)
+        {
+            hours++;
+        } else
+        {
+            hours = 0;
+        }
+        if (HOURS_ALARM == hours)
+        {
+            xEventGroupSetBits(g_time_events, HOURS_EVENT_BIT);
 
-	}
+        }
 
-	message->time_type = hours_type;
-	message->value = hours;
-	xQueueSend(time_Queue, &message, portMAX_DELAY);
-	xSemaphoreTake(hours_semaphore, portMAX_DELAY);
+        message = pvPortMalloc(sizeof(time_msg_t));
+        message->time_type = hours_type;
+        message->value = hours;
+#if 0
+        xQueueSend(time_Queue, &message, portMAX_DELAY);
+#endif
+        vPortFree(message);
+    }
 
 }
 
 int main(void) {
 
-	/* Init board hardware. */
-	BOARD_InitBootPins();
-	BOARD_InitBootClocks();
-	BOARD_InitBootPeripherals();
-	/* Init FSL debug console. */
-	BOARD_InitDebugConsole();
+    /* Init board hardware. */
+    BOARD_InitBootPins();
+    BOARD_InitBootClocks();
+    BOARD_InitBootPeripherals();
+    /* Init FSL debug console. */
+    BOARD_InitDebugConsole();
 
-	xTaskCreate(seconds_task, "Seconds", configMINIMAL_STACK_SIZE,
-			(void*) (xQueue), configMAX_PRIORITIES - 0, NULL);
-	xTaskCreate(minutes_task, "Minutes", configMINIMAL_STACK_SIZE,
-			(void*) (xQueue), configMAX_PRIORITIES - 1, NULL);
-	xTaskCreate(hours_task, "Hours", configMINIMAL_STACK_SIZE, (void*) (xQueue),
-	configMAX_PRIORITIES - 2, NULL);
-	xTaskCreate(alarm_task, "Alarm", configMINIMAL_STACK_SIZE, (void*) (xQueue),
-	configMAX_PRIORITIES - 3, NULL);
-	xTaskCreate(print_task, "Print", configMINIMAL_STACK_SIZE, (void*) (xQueue),
-	configMAX_PRIORITIES - 4, NULL);
+    xQueue = xQueueCreate(2, sizeof(void*));
 
-	minutes_semaphore = xSemaphoreCreateBinary();
-	hours_semaphore = xSemaphoreCreateBinary();
-	mutex_uart = xSemaphoreCreateMutex();
+    minutes_semaphore = xSemaphoreCreateBinary();
+    hours_semaphore = xSemaphoreCreateBinary();
+    mutex_uart = xSemaphoreCreateMutex();
 
-	g_time_events = xEventGroupCreate();
+    xTaskCreate(seconds_task, "Seconds", configMINIMAL_STACK_SIZE,
+                (void*) (xQueue), configMAX_PRIORITIES - 3, NULL);
 
-	vTaskStartScheduler();
+    xTaskCreate(minutes_task, "Minutes", configMINIMAL_STACK_SIZE,
+                (void*) (xQueue), configMAX_PRIORITIES - 2, NULL);
 
-	while (1) {
-	}
-	return 0;
+    xTaskCreate(hours_task, "Hours", configMINIMAL_STACK_SIZE, NULL,
+    configMAX_PRIORITIES - 1,
+                NULL);
+
+    xTaskCreate(alarm_task, "Alarm", configMINIMAL_STACK_SIZE, NULL,
+    configMAX_PRIORITIES - 4,
+                NULL);
+
+//  xTaskCreate(print_task, "Print", configMINIMAL_STACK_SIZE,NULL,
+//  configMAX_PRIORITIES - 0, NULL);
+
+    g_time_events = xEventGroupCreate();
+
+    vTaskStartScheduler();
+
+    while (1)
+    {
+    }
+    return 0;
 }

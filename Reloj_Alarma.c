@@ -263,7 +263,7 @@ void minutes_task(void *arg)
         message->time_type = minutes_type;  /**in the message, the time type is established as minutes*/
         message->value = minutes;   /**in the message, the value to be passed is the current minutes variable*/
 #if DEBUG
-        xQueueSend(time_Queue, &message, 0);    /**the message is sent to the shared queue
+        xQueueSend(time_Queue, &message, 0);    /**the message is sent to the shared queue*/
 
 #endif
     }
@@ -333,7 +333,7 @@ int main(void)
     time_Queue = xQueueCreate(1, sizeof(void*)); /**IPC queue created with the size of a void pointer*/
     minutes_semaphore = xSemaphoreCreateBinary(); /**binary semaphore created for the minutes*/
     hours_semaphore = xSemaphoreCreateBinary(); /**binary semaphore created for the hours*/
-    mutex_uart = xSemaphoreCreateMutex(); /**mutex created in order to protect the uart^/
+    mutex_uart = xSemaphoreCreateMutex(); /**mutex created in order to protect the uart*/
 
      /**seconds task created with the highest priority as it is the most frequent task*/
     xTaskCreate(seconds_task, "Seconds", configMINIMAL_STACK_SIZE + 200,

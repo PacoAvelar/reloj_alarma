@@ -83,6 +83,12 @@ SemaphoreHandle_t mutex_uart;
 static QueueHandle_t time_Queue;
 void alarm_task(void * args) {
 
+    /*
+    *It waits until the hours, minutes & seconds events happen
+    *then it takes the UART with a mutex to prevent collision with other tasks 
+    * prints "ALARM!" and release the mutex of the UART
+    */
+    
     for (;;)
     {
         xEventGroupWaitBits(g_time_events,
@@ -93,7 +99,7 @@ void alarm_task(void * args) {
         xSemaphoreTake(mutex_uart,portMAX_DELAY);
 
         PRINTF("\033[2J");
-        PRINTF("LEVANTATE CABRON! \033[5;10H");
+        PRINTF("ALARM! \033[5;10H");
         xSemaphoreGive(mutex_uart);
     }
 
@@ -101,8 +107,11 @@ void alarm_task(void * args) {
 
 
 void print_task(void * args) {
+    /*
+    *The value of each unit it's updated 
+    *depending on the time_type received by the Queue.
+    */
     static time_msg_t *message;
-
     static uint8_t sec = SECONDS_INIT;
     static uint8_t min = MINUTES_INIT;
     static uint8_t hr = HOURS_INIT;
@@ -127,11 +136,15 @@ void print_task(void * args) {
             default:
             break;
         }
-
+        /*To prevent errors between task
+        * a mutex is used for the use of the UART
+        */
         xSemaphoreTake(mutex_uart,portMAX_DELAY);
 
         PRINTF("%d : %d : %d hrs \033[3;10H", hr,min, sec );
         xSemaphoreGive(mutex_uart);
+        /*Free memory to prevent overflow
+        */
         vPortFree(message);
     }
 
@@ -141,6 +154,10 @@ void seconds_task(void *args) {
     static time_msg_t *message;
     static TickType_t LastTimeAwake;
     static uint8_t seconds = SECONDS_INIT;
+    /*
+    * If the alarm is equal to the minutes and hours of
+    *initialization, then the seconds of initialization are checked.
+    */
     if ((MINUTES_EVENT_BIT | HOURS_EVENT_BIT)
             == xEventGroupGetBits(g_time_events))
     {
@@ -153,6 +170,14 @@ void seconds_task(void *args) {
 #if 0
     QueueHandle_t * seconds_handler = (QueueHandle_t*)(args);
 #endif
+    /*
+    * This task wakes up every second.
+    * it increments the value of seconds and if
+    * it gets to 0 again. 
+    * Sets up an event to increase the value of minutes.
+    * Reserves memory for the message and sends it.
+    * 
+    */
     for (;;)
     {
         LastTimeAwake = xTaskGetTickCount();
@@ -190,6 +215,10 @@ void seconds_task(void *args) {
 void minutes_task(void *arg) {
     static time_msg_t *message;
     static uint8_t minutes = MINUTES_INIT;
+    /*
+    * If the alarm is equal to the hours of
+    *initialization, then the minutes of initialization are checked.
+    */
     if (HOURS_EVENT_BIT == xEventGroupGetBits(g_time_events))
     {
         if (MINUTES_ALARM == minutes)
@@ -197,7 +226,14 @@ void minutes_task(void *arg) {
             xEventGroupSetBits(g_time_events, MINUTES_EVENT_BIT);
         }
     }
-
+    /*
+    * This task wakes up every minute wainting for the 60 seconds event
+    * it increments the value of minutes and if
+    * it gets to 0 again. 
+    * Sets up an event to increase the value of hours.
+    * Reserves memory for the message and sends it.
+    * 
+    */
     for (;;)
     {
         xSemaphoreTake(minutes_semaphore, portMAX_DELAY);
